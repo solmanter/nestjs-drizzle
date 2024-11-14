@@ -28,11 +28,11 @@ export class DrizzleService<
     return this.get(table, resultColumns);
   }
 
-  update<T extends MySqlTable>(table: T, set: Partial<T["$inferInsert"]>) {
+  update<T extends MySqlTable>(table: T, set: Partial<T["$inferSelect"]>) {
     return this.db.update(table).set(set);
   }
 
-  insert<T extends MySqlTable>(table: T, set: T["$inferInsert"]) {
+  insert<T extends MySqlTable>(table: T, set: T["$inferInsert"] & Partial<T["$inferSelect"]>) {
     return this.db.insert(table).values(set);
   }
 
@@ -40,9 +40,7 @@ export class DrizzleService<
     return this.db.delete(table);
   }
 
-  query<TKey extends keyof typeof this.db.query>(
-    query: TKey
-  ): (typeof this.db.query)[TKey] {
+  query<TKey extends keyof typeof this.db.query>(query: TKey): (typeof this.db.query)[TKey] {
     return this.db.query[query];
   }
 }
