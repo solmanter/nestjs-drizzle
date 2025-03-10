@@ -1,4 +1,5 @@
-import { Pool, PoolConfig } from "pg";
+// src/postgres/types.ts
+import { PoolConfig } from "pg";
 
 export interface BasePostgresOptions extends PoolConfig {
   schema: Record<string, unknown>;
@@ -15,3 +16,6 @@ export interface PostgresOptionsWithPg extends BasePostgresOptions {
 }
 
 export type PostgresOptions = PostgresOptionsWithPool | PostgresOptionsWithPg;
+
+// Added for better type safety
+export type DrizzleSchema = Record<string, unknown>;

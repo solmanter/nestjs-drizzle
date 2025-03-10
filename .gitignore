@@ -2,4 +2,14 @@ node_modules
 dist
 /mysql
 /postgres
+
+# Keep test folder in VSCode but not in git
 /test
+
+# VSCode settings
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/templates/

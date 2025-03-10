@@ -1,11 +1,14 @@
 {
   "name": "nestjs-drizzle",
-  "version": "0.9.7-3",
+  "version": "0.9.8",
   "description": "Nestjs Drizzle ORM Helper Module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "rimraf dist && tsc"
+    "build": "rimraf dist && tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "keywords": [
     "nestjs",
@@ -18,7 +21,7 @@
     "@nestjs/common": "^10.4.6",
     "@types/node": "^22.8.6",
     "dotenv": "^16.4.5",
-    "drizzle-orm": "^0.36.0",
+    "drizzle-orm": "^0.36.4",
     "mysql2": "^3.11.3",
     "pg": "^8.13.1",
     "postgres": "^3.4.5",
@@ -29,6 +32,9 @@
   },
   "homepage": "https://github.com/solmanter/nestjs-drizzle.git",
   "devDependencies": {
-    "@types/pg": "^8.11.10"
+    "@nestjs/core": "^11.0.11",
+    "@nestjs/testing": "^11.0.11",
+    "@types/pg": "^8.11.10",
+    "vitest": "^3.0.8"
   }
 }
