@@ -1,18 +1,24 @@
-import { Injectable } from "@nestjs/common";
+import 'dotenv/config';
+import { Injectable, Logger } from "@nestjs/common";
 import { type MySql2Database } from "drizzle-orm/mysql2";
 import {
   CreateMySqlSelectFromBuilderMode,
   MySqlTable,
   SelectedFields,
 } from "drizzle-orm/mysql-core";
-import { getTableColumns, Simplify } from "drizzle-orm";
+import { getTableColumns, Simplify, SQL } from "drizzle-orm";
 import { GetSelectTableName } from "drizzle-orm/query-builders/select.types";
+import type { ResultSetHeader } from 'mysql2';
 
 @Injectable()
 export class DrizzleService<
   TSchema extends Record<string, unknown> = Record<string, never>
 > {
-  constructor(public db: MySql2Database<TSchema>) { }
+  private readonly logger = new Logger(DrizzleService.name);
+  
+  constructor(public db: MySql2Database<TSchema>) {
+    this.logger.log('MySQL database connection established');
+  }
 
   get<T extends MySqlTable, TSelect extends SelectedFields | Simplify<T['$inferSelect']> | undefined>(from: T, select?: TSelect):
     CreateMySqlSelectFromBuilderMode<"db", GetSelectTableName<T>, TSelect extends SelectedFields ? Simplify<TSelect> : Simplify<T['_']['columns']>, "partial", any> {
@@ -36,11 +42,38 @@ export class DrizzleService<
     return this.db.insert(table).values(set);
   }
 
+  insertMany<T extends MySqlTable>(
+    table: T,
+    values: (T["$inferInsert"] & Partial<T["$inferSelect"]>)[]
+  ) {
+    return this.db.insert(table).values(values);
+  }
+
   delete(table: MySqlTable) {
     return this.db.delete(table);
   }
 
-  query<TKey extends keyof typeof this.db.query>(query: TKey): (typeof this.db.query)[TKey] {
-    return this.db.query[query];
+  /**
+   * Execute a raw SQL query
+   * @param query SQL query to execute
+   * @returns Promise resolving to the query result
+   */
+  execute<T = unknown>(query: SQL<unknown>): Promise<T> {
+    return this.db.execute(query).then(result => {
+      return result as unknown as T;
+    });
+  }
+
+  /**
+   * Execute a transaction
+   * @param callback Function to execute within the transaction
+   * @returns Promise resolving to the result of the callback
+   */
+  transaction<T>(callback: (tx: MySql2Database<TSchema>) => Promise<T>): Promise<T> {
+    return this.db.transaction(callback);
+  }
+
+  get query() {
+    return this.db.query;
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "nestjs-drizzle",
-  "version": "0.9.8",
+  "version": "1.1.0",
   "description": "Nestjs Drizzle ORM Helper Module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -18,8 +18,10 @@
   "author": "Suleyman",
   "license": "ISC",
   "dependencies": {
+    "@libsql/client": "^0.14.0",
     "@nestjs/common": "^10.4.6",
     "@types/node": "^22.8.6",
+    "better-sqlite3": "^11.8.1",
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.36.4",
     "mysql2": "^3.11.3",
@@ -34,6 +36,7 @@
   "devDependencies": {
     "@nestjs/core": "^11.0.11",
     "@nestjs/testing": "^11.0.11",
+    "@types/better-sqlite3": "^7.6.12",
     "@types/pg": "^8.11.10",
     "vitest": "^3.0.8"
   }

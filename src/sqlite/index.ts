@@ -1,7 +1,8 @@
+// src/sqlite/index.ts
 import { AnyColumn, sql, SQL, count, sum, max, min, avg, Placeholder } from "drizzle-orm";
 
-export * from "./mysql.module";
-export * from "./mysql.service";
+export * from "./sqlite.module";
+export * from "./sqlite.service";
 export * from "./types";
 
 /**
@@ -44,7 +45,7 @@ export function whereIf<T>(condition: boolean, clause: SQL<T>): SQL<T> | undefin
  * @example this.drizzle.get(users, { userData: jsonObject([users.name, users.email]) })
  */
 export function jsonObject<T>(columns: AnyColumn[]): SQL<T> {
-  return sql<T>`JSON_OBJECT(${sql.join(
+  return sql<T>`json_object(${sql.join(
     columns.flatMap(col => [sql.raw(`'${col.name}'`), col]),
     sql.raw(', ')
   )})`;
@@ -57,7 +58,7 @@ export function jsonObject<T>(columns: AnyColumn[]): SQL<T> {
  * @example this.drizzle.get(users, { fullName: concat(users.firstName, ' ', users.lastName) })
  */
 export function concat<T extends string>(...args: (SQL<unknown> | AnyColumn | string | number)[]): SQL<T> {
-  return sql<T>`CONCAT(${sql.join(args, sql.raw(', '))})`;
+  return sql<T>`(${sql.join(args, sql.raw(' || '))})`;
 }
 
 /**
@@ -67,7 +68,7 @@ export function concat<T extends string>(...args: (SQL<unknown> | AnyColumn | st
  * @example this.drizzle.get(users, { displayName: coalesce(users.nickname, users.username) })
  */
 export function coalesce<T>(...args: (SQL<unknown> | AnyColumn | null | undefined | string | number)[]): SQL<T> {
-  return sql<T>`COALESCE(${sql.join(args, sql.raw(', '))})`;
+  return sql<T>`coalesce(${sql.join(args, sql.raw(', '))})`;
 }
 
 /**
@@ -102,7 +103,7 @@ export function caseWhen<T>(
  * @example this.drizzle.get(users, { division: nullIf(users.divisor, 0) })
  */
 export function nullIf<T>(expr1: SQL<unknown> | AnyColumn | string | number, expr2: SQL<unknown> | AnyColumn | string | number): SQL<T> {
-  return sql<T>`NULLIF(${expr1}, ${expr2})`;
+  return sql<T>`nullif(${expr1}, ${expr2})`;
 }
 
 /**
@@ -111,7 +112,7 @@ export function nullIf<T>(expr1: SQL<unknown> | AnyColumn | string | number, exp
  * @example this.drizzle.get(users, { today: currentDate() })
  */
 export function currentDate(): SQL<string> {
-  return sql<string>`CURDATE()`;
+  return sql<string>`date('now')`;
 }
 
 /**
@@ -120,7 +121,7 @@ export function currentDate(): SQL<string> {
  * @example this.drizzle.get(users, { now: currentTimestamp() })
  */
 export function currentTimestamp(): SQL<string> {
-  return sql<string>`NOW()`;
+  return sql<string>`datetime('now')`;
 }
 
 /**
@@ -134,25 +135,25 @@ export function extract<T extends number>(
   part: 'year' | 'month' | 'day' | 'hour' | 'minute' | 'second',
   date: SQL<unknown> | AnyColumn
 ): SQL<T> {
-  const partMap: Record<string, string> = {
-    year: 'YEAR',
-    month: 'MONTH',
-    day: 'DAY',
-    hour: 'HOUR',
-    minute: 'MINUTE',
-    second: 'SECOND'
+  const extractMap = {
+    year: '%Y',
+    month: '%m',
+    day: '%d',
+    hour: '%H',
+    minute: '%M',
+    second: '%S'
   };
   
-  return sql<T>`EXTRACT(${sql.raw(partMap[part])} FROM ${date})`;
+  return sql<T>`cast(strftime('${sql.raw(extractMap[part])}', ${date}) as integer)`;
 }
 
 /**
  * Adds or subtracts an interval to/from a date
  * @param date Date expression
  * @param operator '+' or '-'
- * @param interval Interval string (e.g., '1 DAY', '2 MONTH')
+ * @param interval Interval string (e.g., '1 day', '2 month')
  * @returns SQL expression for date with interval applied
- * @example this.drizzle.get(users, { nextWeek: dateAdd(users.createdAt, '+', '1 WEEK') })
+ * @example this.drizzle.get(users, { nextWeek: dateAdd(users.createdAt, '+', '1 day') })
  */
 export function dateAdd<T>(
   date: SQL<unknown> | AnyColumn,
@@ -160,11 +161,27 @@ export function dateAdd<T>(
   interval: string
 ): SQL<T> {
   const [amount, unit] = interval.split(' ');
-  if (operator === '+') {
-    return sql<T>`DATE_ADD(${date}, INTERVAL ${sql.raw(amount)} ${sql.raw(unit)})`;
-  } else {
-    return sql<T>`DATE_SUB(${date}, INTERVAL ${sql.raw(amount)} ${sql.raw(unit)})`;
+  const unitMap: Record<string, string> = {
+    day: 'days',
+    days: 'days',
+    month: 'months',
+    months: 'months',
+    year: 'years',
+    years: 'years',
+    hour: 'hours',
+    hours: 'hours',
+    minute: 'minutes',
+    minutes: 'minutes',
+    second: 'seconds',
+    seconds: 'seconds'
+  };
+  
+  const sqliteUnit = unitMap[unit.toLowerCase()];
+  if (!sqliteUnit) {
+    throw new Error(`Unsupported interval unit: ${unit}`);
   }
+  
+  return sql<T>`datetime(${date}, '${sql.raw(operator)}${sql.raw(amount)} ${sql.raw(sqliteUnit)}')`;
 }
 
 /**
@@ -172,13 +189,13 @@ export function dateAdd<T>(
  * @param value Value to cast
  * @param type Type to cast to
  * @returns SQL expression for cast value
- * @example this.drizzle.get(users, { ageAsString: cast(users.age, 'CHAR') })
+ * @example this.drizzle.get(users, { ageAsString: cast(users.age, 'text') })
  */
 export function cast<T>(
   value: SQL<unknown> | AnyColumn | string | number | null,
   type: string
 ): SQL<T> {
-  return sql<T>`CAST(${value} AS ${sql.raw(type)})`;
+  return sql<T>`cast(${value} as ${sql.raw(type)})`;
 }
 
 /**
@@ -188,7 +205,7 @@ export function cast<T>(
  * @example this.drizzle.get(users, { lowerName: lower(users.name) })
  */
 export function lower<T extends string>(value: SQL<unknown> | AnyColumn | string): SQL<T> {
-  return sql<T>`LOWER(${value})`;
+  return sql<T>`lower(${value})`;
 }
 
 /**
@@ -198,7 +215,7 @@ export function lower<T extends string>(value: SQL<unknown> | AnyColumn | string
  * @example this.drizzle.get(users, { upperName: upper(users.name) })
  */
 export function upper<T extends string>(value: SQL<unknown> | AnyColumn | string): SQL<T> {
-  return sql<T>`UPPER(${value})`;
+  return sql<T>`upper(${value})`;
 }
 
 /**
@@ -208,13 +225,13 @@ export function upper<T extends string>(value: SQL<unknown> | AnyColumn | string
  * @example this.drizzle.get(users, { trimmedName: trim(users.name) })
  */
 export function trim<T extends string>(value: SQL<unknown> | AnyColumn | string): SQL<T> {
-  return sql<T>`TRIM(${value})`;
+  return sql<T>`trim(${value})`;
 }
 
 /**
  * Extracts a substring from a string
  * @param value String to extract from
- * @param start Start position (1-indexed in MySQL)
+ * @param start Start position (1-indexed in SQLite)
  * @param length Length of substring
  * @returns SQL expression for substring
  * @example this.drizzle.get(users, { firstThreeChars: substring(users.name, 1, 3) })
@@ -225,8 +242,8 @@ export function substring<T extends string>(
   length?: number
 ): SQL<T> {
   return length !== undefined
-    ? sql<T>`SUBSTRING(${value}, ${start}, ${length})`
-    : sql<T>`SUBSTRING(${value}, ${start})`;
+    ? sql<T>`substr(${value}, ${start}, ${length})`
+    : sql<T>`substr(${value}, ${start})`;
 }
 
 /**
@@ -236,7 +253,7 @@ export function substring<T extends string>(
  * @example this.drizzle.get(users, { nameLength: length(users.name) })
  */
 export function length<T extends number>(value: SQL<unknown> | AnyColumn | string): SQL<T> {
-  return sql<T>`LENGTH(${value})`;
+  return sql<T>`length(${value})`;
 }
 
 /**
@@ -250,7 +267,7 @@ export function position<T extends number>(
   substring: SQL<unknown> | string,
   string: SQL<unknown> | AnyColumn | string
 ): SQL<T> {
-  return sql<T>`LOCATE(${substring}, ${string})`;
+  return sql<T>`instr(${string}, ${substring})`;
 }
 
 /**
@@ -266,7 +283,7 @@ export function replace<T extends string>(
   from: string,
   to: string
 ): SQL<T> {
-  return sql<T>`REPLACE(${string}, ${from}, ${to})`;
+  return sql<T>`replace(${string}, ${from}, ${to})`;
 }
 
 /**
@@ -304,7 +321,7 @@ export function endsWith<T extends boolean>(
  * @example this.drizzle.get(users, { absAge: abs(users.age) })
  */
 export function abs<T extends number>(value: SQL<unknown> | AnyColumn | number): SQL<T> {
-  return sql<T>`ABS(${value})`;
+  return sql<T>`abs(${value})`;
 }
 
 /**
@@ -318,27 +335,35 @@ export function round<T extends number>(
   value: SQL<unknown> | AnyColumn | number,
   precision: number = 0
 ): SQL<T> {
-  return sql<T>`ROUND(${value}, ${precision})`;
+  return sql<T>`round(${value}, ${precision})`;
 }
 
 /**
- * Gets the ceiling of a number
- * @param value Value to ceil
- * @returns SQL expression for ceiling
- * @example this.drizzle.get(users, { ceilAge: ceil(users.age) })
+ * Gets the maximum of two values
+ * @param a First value
+ * @param b Second value
+ * @returns SQL expression for maximum value
+ * @example this.drizzle.get(users, { maxAge: max2(users.age, 18) })
  */
-export function ceil<T extends number>(value: SQL<unknown> | AnyColumn | number): SQL<T> {
-  return sql<T>`CEILING(${value})`;
+export function max2<T extends number>(
+  a: SQL<unknown> | AnyColumn | number,
+  b: SQL<unknown> | AnyColumn | number
+): SQL<T> {
+  return sql<T>`max(${a}, ${b})`;
 }
 
 /**
- * Gets the floor of a number
- * @param value Value to floor
- * @returns SQL expression for floor
- * @example this.drizzle.get(users, { floorAge: floor(users.age) })
+ * Gets the minimum of two values
+ * @param a First value
+ * @param b Second value
+ * @returns SQL expression for minimum value
+ * @example this.drizzle.get(users, { minAge: min2(users.age, 18) })
  */
-export function floor<T extends number>(value: SQL<unknown> | AnyColumn | number): SQL<T> {
-  return sql<T>`FLOOR(${value})`;
+export function min2<T extends number>(
+  a: SQL<unknown> | AnyColumn | number,
+  b: SQL<unknown> | AnyColumn | number
+): SQL<T> {
+  return sql<T>`min(${a}, ${b})`;
 }
 
 /**
@@ -352,31 +377,7 @@ export function mod<T extends number>(
   dividend: SQL<unknown> | AnyColumn | number,
   divisor: number
 ): SQL<T> {
-  return sql<T>`MOD(${dividend}, ${divisor})`;
-}
-
-/**
- * Raises a number to a power
- * @param base Base
- * @param exponent Exponent
- * @returns SQL expression for power
- * @example this.drizzle.get(users, { ageSquared: power(users.age, 2) })
- */
-export function power<T extends number>(
-  base: SQL<unknown> | AnyColumn | number,
-  exponent: number
-): SQL<T> {
-  return sql<T>`POWER(${base}, ${exponent})`;
-}
-
-/**
- * Gets the square root of a number
- * @param value Value to get square root of
- * @returns SQL expression for square root
- * @example this.drizzle.get(users, { sqrtAge: sqrt(users.age) })
- */
-export function sqrt<T extends number>(value: SQL<unknown> | AnyColumn | number): SQL<T> {
-  return sql<T>`SQRT(${value})`;
+  return sql<T>`(${dividend} % ${divisor})`;
 }
 
 /**
@@ -385,81 +386,7 @@ export function sqrt<T extends number>(value: SQL<unknown> | AnyColumn | number)
  * @example this.drizzle.get(users, { random: random() })
  */
 export function random<T extends number>(): SQL<T> {
-  return sql<T>`RAND()`;
-}
-
-/**
- * Aggregates values into an array (MySQL doesn't have a direct array_agg equivalent, using GROUP_CONCAT)
- * @param value Value to aggregate
- * @returns SQL expression for aggregated string
- * @example this.drizzle.get(users, { allNames: arrayAgg(users.name) }).groupBy(users.id)
- */
-export function arrayAgg<T>(value: SQL<unknown> | AnyColumn): SQL<T> {
-  return sql<T>`GROUP_CONCAT(${value})`;
-}
-
-/**
- * Aggregates values into a JSON array
- * @param value Value to aggregate
- * @returns SQL expression for JSON array
- * @example this.drizzle.get(users, { namesJson: jsonAgg(users.name) }).groupBy(users.id)
- */
-export function jsonAgg<T>(value: SQL<unknown> | AnyColumn): SQL<T> {
-  return sql<T>`JSON_ARRAYAGG(${value})`;
-}
-
-/**
- * Converts a value to JSON
- * @param value Value to convert
- * @returns SQL expression for JSON
- * @example this.drizzle.get(users, { jsonData: toJson(users.data) })
- */
-export function toJson<T>(value: SQL<unknown> | AnyColumn): SQL<T> {
-  return sql<T>`JSON_OBJECT(${value})`;
-}
-
-/**
- * Aggregates strings with a separator
- * @param value Value to aggregate
- * @param separator Separator (default: ',')
- * @returns SQL expression for aggregated string
- * @example this.drizzle.get(users, { namesList: stringAgg(users.name, ';') }).groupBy(users.id)
- */
-export function stringAgg<T extends string>(
-  value: SQL<unknown> | AnyColumn,
-  separator: string = ','
-): SQL<T> {
-  return sql<T>`GROUP_CONCAT(${value} SEPARATOR ${separator})`;
-}
-
-/**
- * Replaces text using regular expressions
- * @param string String to perform replacement on
- * @param pattern Regular expression pattern
- * @param replacement Replacement string
- * @returns SQL expression for string with replacements
- * @example this.drizzle.get(users, { noDigits: regexpReplace(users.name, '[0-9]', '') })
- */
-export function regexpReplace<T extends string>(
-  string: SQL<unknown> | AnyColumn | string,
-  pattern: string,
-  replacement: string
-): SQL<T> {
-  return sql<T>`REGEXP_REPLACE(${string}, ${pattern}, ${replacement})`;
-}
-
-/**
- * Checks if a string matches a regular expression
- * @param string String to check
- * @param pattern Regular expression pattern
- * @returns SQL expression for boolean result
- * @example this.drizzle.get(users).where(regexpMatches(users.name, '^A.*'))
- */
-export function regexpMatches<T>(
-  string: SQL<unknown> | AnyColumn | string,
-  pattern: string
-): SQL<T> {
-  return sql<T>`${string} REGEXP ${pattern}`;
+  return sql<T>`random() / 9223372036854775807.0`;
 }
 
 /**
@@ -499,7 +426,7 @@ export function inList<T extends boolean>(
 }
 
 /**
- * Creates an IF-THEN-ELSE expression
+ * Creates an IF-THEN-ELSE expression (using CASE WHEN in SQLite)
  * @param condition Condition
  * @param trueValue Value if condition is true
  * @param falseValue Value if condition is false
@@ -511,7 +438,7 @@ export function ifThen<T>(
   trueValue: SQL<unknown> | string | number | boolean,
   falseValue: SQL<unknown> | string | number | boolean
 ): SQL<T> {
-  return sql<T>`IF(${condition}, ${trueValue}, ${falseValue})`;
+  return sql<T>`CASE WHEN ${condition} THEN ${trueValue} ELSE ${falseValue} END`;
 }
 
 /**
@@ -525,23 +452,23 @@ export function placeholder<T extends string>(name: string): Placeholder<T, any>
 }
 
 /**
- * Checks if a JSON array contains a value
- * @param array JSON array
- * @param value Value to check for
+ * Checks if a JSON string contains a path
+ * @param json JSON string
+ * @param path Path to check
  * @returns SQL expression for boolean result
- * @example this.drizzle.get(users).where(jsonArrayContains(users.tags, 'admin'))
+ * @example this.drizzle.get(users).where(jsonHasPath(users.data, '$.name'))
  */
-export function jsonArrayContains<T extends boolean>(
-  array: SQL<unknown> | AnyColumn,
-  value: unknown
+export function jsonHasPath<T extends boolean>(
+  json: SQL<unknown> | AnyColumn,
+  path: string
 ): SQL<T> {
-  return sql<T>`JSON_CONTAINS(${array}, JSON_QUOTE(${value}))`;
+  return sql<T>`json_type(${json}, ${path}) IS NOT NULL`;
 }
 
 /**
- * Gets a value from a JSON object by path
- * @param json JSON object
- * @param path Path to value (e.g., '$.name')
+ * Extracts a value from a JSON string
+ * @param json JSON string
+ * @param path Path to extract
  * @returns SQL expression for extracted value
  * @example this.drizzle.get(users, { name: jsonExtract(users.data, '$.name') })
  */
@@ -549,37 +476,7 @@ export function jsonExtract<T>(
   json: SQL<unknown> | AnyColumn,
   path: string
 ): SQL<T> {
-  return sql<T>`JSON_EXTRACT(${json}, ${path})`;
-}
-
-/**
- * Sets a value in a JSON object
- * @param json JSON object
- * @param path Path to set
- * @param value Value to set
- * @returns SQL expression for modified JSON
- * @example this.drizzle.update(users).set({ data: jsonSet(users.data, '$.verified', true) })
- */
-export function jsonSet<T>(
-  json: SQL<unknown> | AnyColumn,
-  path: string,
-  value: SQL<unknown> | AnyColumn | unknown
-): SQL<T> {
-  return sql<T>`JSON_SET(${json}, ${path}, ${value})`;
-}
-
-/**
- * Removes a value from a JSON object
- * @param json JSON object
- * @param path Path to remove
- * @returns SQL expression for modified JSON
- * @example this.drizzle.update(users).set({ data: jsonRemove(users.data, '$.temporary') })
- */
-export function jsonRemove<T>(
-  json: SQL<unknown> | AnyColumn,
-  path: string
-): SQL<T> {
-  return sql<T>`JSON_REMOVE(${json}, ${path})`;
+  return sql<T>`json_extract(${json}, ${path})`;
 }
 
 /**
@@ -590,4 +487,4 @@ export function jsonRemove<T>(
  */
 export function distinct<T>(value: SQL<unknown> | AnyColumn): SQL<T> {
   return sql<T>`DISTINCT ${value}`;
-}
+} 

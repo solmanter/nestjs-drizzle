@@ -3,9 +3,6 @@ dist
 /mysql
 /postgres
 
-# Keep test folder in VSCode but not in git
-/test
-
 # VSCode settings
 .vscode/*
 !.vscode/settings.json

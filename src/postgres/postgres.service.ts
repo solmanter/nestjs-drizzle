@@ -1,7 +1,7 @@
 // src/postgres/postgres.service.ts
 import 'dotenv/config';
 import { Injectable, Logger } from "@nestjs/common";
-import { drizzle, NodePgClient, NodePgDatabase } from "drizzle-orm/node-postgres";
+import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { getTableColumns, Simplify, SQL } from "drizzle-orm";
 import type {
   CreatePgSelectFromBuilderMode,
@@ -10,46 +10,20 @@ import type {
   SelectedFields,
 } from "drizzle-orm/pg-core";
 import { GetSelectTableName } from "drizzle-orm/query-builders/select.types";
-import { PostgresOptions } from './types';
-import { Pool, QueryResult } from 'pg';
+import { QueryResult } from 'pg';
 
-function databaseWithDefault(connectionString?: string): string {
-  if (!connectionString && !process.env.DATABASE_URL) {
-    throw new Error("Database connection string is required. Provide it via options or DATABASE_URL environment variable.");
-  }
-  return connectionString || process.env.DATABASE_URL!;
-}
+// Union type for all PostgreSQL-compatible databases
+export type PostgresDatabase<TSchema extends Record<string, unknown>> = 
+  | NodePgDatabase<TSchema>
+  | any; // This allows for Neon and Vercel Postgres databases
 
 @Injectable()
 export class DrizzleService<TSchema extends Record<string, unknown> = Record<string, unknown>> {
   private readonly logger = new Logger(DrizzleService.name);
-  public db: NodePgDatabase<TSchema>;
+  public db: PostgresDatabase<TSchema>;
 
-  constructor(options: PostgresOptions) {
-    const { schema, connectionString, ...connection } = options;
-
-    try {
-      if (options?.driver === 'pool') {
-        const pool = new Pool({ connectionString: databaseWithDefault(connectionString) });
-        this.db = drizzle({
-          client: pool,
-          schema,
-          ...connection
-        }) as NodePgDatabase<TSchema> & { $client: Pool };
-      } else {
-        this.db = drizzle({
-          connection: {
-            connectionString: databaseWithDefault(connectionString),
-            ...connection
-          },
-          schema: options.schema
-        }) as NodePgDatabase<TSchema> & { $client: NodePgClient };
-      }
-      this.logger.log('Database connection established');
-    } catch (error) {
-      this.logger.error('Failed to establish database connection', error);
-      throw error;
-    }
+  constructor(db: PostgresDatabase<TSchema>) {
+    this.db = db;
   }
 
   get<
@@ -111,10 +85,6 @@ export class DrizzleService<TSchema extends Record<string, unknown> = Record<str
     return this.db.delete(table);
   }
 
-  transaction<T>(callback: (tx: NodePgDatabase<TSchema>) => Promise<T>): Promise<T> {
-    return this.db.transaction(callback);
-  }
-
   /**
    * Execute a raw SQL query
    * @param query SQL query to execute
@@ -122,6 +92,15 @@ export class DrizzleService<TSchema extends Record<string, unknown> = Record<str
    */
   execute<T = unknown>(query: SQL<unknown>): Promise<QueryResult<T>> {
     return this.db.execute(query) as unknown as Promise<QueryResult<T>>;
+  }
+
+  /**
+   * Execute a transaction
+   * @param callback Function to execute within the transaction
+   * @returns Promise resolving to the result of the callback
+   */
+  transaction<T>(callback: (tx: PostgresDatabase<TSchema>) => Promise<T>): Promise<T> {
+    return this.db.transaction(callback);
   }
 
   get query() {

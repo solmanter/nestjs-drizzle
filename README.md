@@ -1,19 +1,105 @@
 ## Nest.js Drizzle
 
+### Installation
+
+First, install the core package:
+
+```bash
+npm install nestjs-drizzle
+```
+
+For schema migrations and database management, install Drizzle Kit as a dev dependency:
+
+```bash
+npm install -D drizzle-kit
+```
+
+Then, install the required packages for your database:
+
+#### PostgreSQL
+```bash
+# For standard PostgreSQL
+npm install drizzle-orm pg
+```
+
+#### Neon Serverless
+```bash
+npm install drizzle-orm @neondatabase/serverless
+```
+
+#### Vercel Postgres
+```bash
+npm install drizzle-orm @vercel/postgres
+```
+
+#### Supabase
+```bash
+npm install drizzle-orm pg @supabase/supabase-js
+```
+
+#### MySQL
+```bash
+npm install drizzle-orm mysql2
+```
+
+#### PlanetScale
+```bash
+npm install drizzle-orm @planetscale/database
+```
+
+#### SQLite
+```bash
+npm install drizzle-orm better-sqlite3
+```
+
+#### Turso (LibSQL)
+```bash
+npm install drizzle-orm @libsql/client
+```
+
+### Configuring Drizzle Kit for Migrations
+
+Create a `drizzle.config.ts` file in your project root:
+
+```ts
+import type { Config } from 'drizzle-kit';
+
+export default {
+  schema: './drizzle/schema.ts',
+  out: './drizzle/migrations',
+  driver: 'pg', // or 'mysql', 'sqlite', etc.
+  dbCredentials: {
+    // For PostgreSQL
+    connectionString: process.env.DATABASE_URL!,
+    // For SQLite
+    // url: 'sqlite.db',
+  }
+} satisfies Config;
+```
+
+Add the following scripts to your `package.json`:
+
+```json
+{
+  "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
+  }
+}
+```
+
 ### Todo List
 
 - [x] mysql2
 - [x] node-postgres
 - [x] supabase
-- [ ] sqlite
-- [ ] planetscale
-- [ ] neon
-- [ ] vercel postgres
-- [ ] turso
-
-```bash
-npm install nestjs-drizzle
-```
+- [x] sqlite
+- [x] planetscale
+- [x] neon
+- [x] vercel postgres
+- [x] turso
 
 ### For schema
 ```ts
@@ -41,21 +127,75 @@ import * as schema from '/path/schema';
 
 @Module({
   imports: [
-    // in default DrizzleModule gets url from .env DATABASE_URL
+    // Standard PostgreSQL
     DrizzleModule.forRoot({ schema }),
-    // or
-    DrizzleModule.forRoot({ schema, connectionString: process.env.DATABASE_URL })
+    // or with connection string
+    DrizzleModule.forRoot({ schema, connectionString: process.env.DATABASE_URL }),
+    
+    // Neon Serverless
+    DrizzleModule.forRoot({ 
+      schema, 
+      driver: 'neon',
+      connectionString: process.env.NEON_DATABASE_URL,
+      neon: {
+        useHttp: true // Use HTTP protocol instead of WebSockets
+      }
+    }),
+    
+    // Vercel Postgres
+    DrizzleModule.forRoot({ 
+      schema, 
+      driver: 'vercel',
+      connectionString: process.env.POSTGRES_URL,
+      vercel: {
+        pooling: true,
+        maxConnections: 5
+      }
+    })
   ]
 })
 
-// For mysql
+// For MySQL
 import { DrizzleModule } from 'nestjs-drizzle/mysql';
 import * as schema from '/path/schema';
 
 @Module({
   imports: [
+    // Standard MySQL
     DrizzleModule.forRoot({ schema, connection: { uri: process.env.DATABASE_URL } }),
-    DrizzleModule.forRoot({ schema, pool: { ... } })
+    DrizzleModule.forRoot({ schema, pool: { ... } }),
+    
+    // PlanetScale
+    DrizzleModule.forRoot({ 
+      schema, 
+      driver: 'planetscale',
+      connectionString: process.env.PLANETSCALE_URL,
+      planetscale: {
+        username: process.env.PLANETSCALE_USERNAME,
+        password: process.env.PLANETSCALE_PASSWORD,
+        host: process.env.PLANETSCALE_HOST
+      }
+    })
+  ]
+})
+
+// For SQLite
+import { DrizzleModule } from 'nestjs-drizzle/sqlite';
+import * as schema from '/path/schema';
+
+@Module({
+  imports: [
+    // Use SQLite (default)
+    DrizzleModule.forRoot({ schema, url: 'sqlite.db' }),
+    // Use in-memory SQLite
+    DrizzleModule.forRoot({ schema, memory: true }),
+    // Use Turso (LibSQL)
+    DrizzleModule.forRoot({ 
+      schema, 
+      driver: 'turso',
+      url: process.env.TURSO_URL,
+      authToken: process.env.TURSO_AUTH_TOKEN
+    })
   ]
 })
 ```
@@ -70,6 +210,18 @@ declare namespace NodeJS {
   interface ProcessEnv {
     [key: string]: string | undefined;
     DATABASE_URL: string;
+    // For Turso
+    TURSO_URL: string;
+    TURSO_AUTH_TOKEN: string;
+    // For PlanetScale
+    PLANETSCALE_URL: string;
+    PLANETSCALE_USERNAME: string;
+    PLANETSCALE_PASSWORD: string;
+    PLANETSCALE_HOST: string;
+    // For Neon
+    NEON_DATABASE_URL: string;
+    // For Vercel Postgres
+    POSTGRES_URL: string;
     // add more environment variables and their types here
   }
 }
