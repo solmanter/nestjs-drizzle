@@ -2,6 +2,7 @@ node_modules
 dist
 /mysql
 /postgres
+/sqlite
 
 # VSCode settings
 .vscode/*

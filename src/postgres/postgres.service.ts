@@ -1,6 +1,6 @@
 // src/postgres/postgres.service.ts
 import 'dotenv/config';
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { getTableColumns, Simplify, SQL } from "drizzle-orm";
 import type {
@@ -9,50 +9,35 @@ import type {
   PgTable,
   SelectedFields,
 } from "drizzle-orm/pg-core";
-import { GetSelectTableName } from "drizzle-orm/query-builders/select.types";
 import { QueryResult } from 'pg';
+import { GetSelectTableName } from 'drizzle-orm/query-builders/select.types';
 
-// Union type for all PostgreSQL-compatible databases
-export type PostgresDatabase<TSchema extends Record<string, unknown>> = 
-  | NodePgDatabase<TSchema>
-  | any; // This allows for Neon and Vercel Postgres databases
 
 @Injectable()
 export class DrizzleService<TSchema extends Record<string, unknown> = Record<string, unknown>> {
-  private readonly logger = new Logger(DrizzleService.name);
-  public db: PostgresDatabase<TSchema>;
+  public db: NodePgDatabase<TSchema>;
 
-  constructor(db: PostgresDatabase<TSchema>) {
+  constructor(db: NodePgDatabase<TSchema>) {
     this.db = db;
   }
 
   get<
     T extends PgTable,
-    TSelect extends SelectedFields | Simplify<T['$inferSelect']> | undefined = undefined
+    TSelect extends SelectedFields | Simplify<T['_']['columns']> = Simplify<T['_']['columns']>
   >(
     from: T,
     select?: TSelect
-  ): CreatePgSelectFromBuilderMode<
-    "db",
-    GetSelectTableName<T>,
-    TSelect extends SelectedFields ? Simplify<TSelect> : Simplify<T['_']['columns']>,
-    "partial"
-  > {
-    return this.db.select(select as SelectedFields).from(from) as any;
+  ) {
+    return this.db.select(select as SelectedFields).from(from) as unknown as CreatePgSelectFromBuilderMode<"db", GetSelectTableName<T>, Simplify<TSelect>, "partial">;
   }
 
   getWithout<
     T extends PgTable,
-    TSelect extends Partial<Record<keyof T['_']['columns'], true>> | undefined = undefined
+    TSelect extends Partial<Record<keyof T['_']['columns'], true>>
   >(
     table: T,
     select?: TSelect
-  ): CreatePgSelectFromBuilderMode<
-    "db",
-    GetSelectTableName<T>,
-    Simplify<Omit<T['_']['columns'], keyof TSelect>>,
-    "partial"
-  > {
+  ) {
     const columns = getTableColumns(table);
     const resultColumns = Object.fromEntries(
       Object.entries(columns).filter(([key]) => !Object.keys(select || {}).includes(key))
@@ -62,22 +47,16 @@ export class DrizzleService<TSchema extends Record<string, unknown> = Record<str
 
   update<T extends PgTable>(
     table: T,
-    set: Partial<T['$inferSelect']>
+    set: PgInsertValue<T>
   ) {
     return this.db.update(table).set(set);
   }
 
-  insert<T extends PgTable>(
-    table: T,
-    set: PgInsertValue<T> & Partial<T['$inferSelect']>
-  ) {
+  insert<T extends PgTable>(table: T, set: PgInsertValue<T>) {
     return this.db.insert(table).values(set);
   }
 
-  insertMany<T extends PgTable>(
-    table: T,
-    values: (PgInsertValue<T> & Partial<T['$inferSelect']>)[]
-  ) {
+  insertMany<T extends PgTable>(table: T, values: PgInsertValue<T>[]) {
     return this.db.insert(table).values(values);
   }
 
@@ -99,7 +78,7 @@ export class DrizzleService<TSchema extends Record<string, unknown> = Record<str
    * @param callback Function to execute within the transaction
    * @returns Promise resolving to the result of the callback
    */
-  transaction<T>(callback: (tx: PostgresDatabase<TSchema>) => Promise<T>): Promise<T> {
+  transaction<T>(callback: (tx: NodePgDatabase<TSchema>) => Promise<T>): Promise<T> {
     return this.db.transaction(callback);
   }
 

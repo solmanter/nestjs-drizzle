@@ -1,6 +1,6 @@
 {
   "name": "nestjs-drizzle",
-  "version": "1.1.0",
+  "version": "1.1.5",
   "description": "Nestjs Drizzle ORM Helper Module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

@@ -2,16 +2,17 @@ import 'dotenv/config';
 import { Injectable, Logger } from "@nestjs/common";
 import { getTableColumns, Simplify, SQL } from "drizzle-orm";
 import { GetSelectTableName } from "drizzle-orm/query-builders/select.types";
-import { 
-  SQLiteTable, 
-  SelectedFields, 
-  CreateSQLiteSelectFromBuilderMode 
+import {
+  SQLiteTable,
+  SelectedFields,
+  CreateSQLiteSelectFromBuilderMode,
+  SQLiteInsertValue
 } from "drizzle-orm/sqlite-core";
 import { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import { LibSQLDatabase } from "drizzle-orm/libsql";
 
 // Union type for both SQLite and Turso databases
-export type SQLiteOrTursoDatabase<TSchema extends Record<string, unknown>> = 
+export type SQLiteOrTursoDatabase<TSchema extends Record<string, unknown>> =
   | BetterSQLite3Database<TSchema>
   | LibSQLDatabase<TSchema>;
 
@@ -25,42 +26,41 @@ export class DrizzleService<TSchema extends Record<string, unknown> = Record<str
     this.logger.log('SQLite/Turso database connection established');
   }
 
-  get<T extends SQLiteTable, TSelect = undefined>(
+  get<T extends SQLiteTable, TSelect extends SelectedFields | Simplify<T['_']['columns']> = Simplify<T['_']['columns']>>(
     from: T,
     select?: TSelect
-  ) {
-    // @ts-ignore - Handle different database implementations
-    return this.db.select(select as any).from(from);
+  ): CreateSQLiteSelectFromBuilderMode<"db", GetSelectTableName<T>, "async", any, TSelect extends SelectedFields ? Simplify<TSelect> : Simplify<T['_']['columns']>, 'partial'> {
+    return (this.db as any).select(select as SelectedFields).from(from) as any;
   }
 
   getWithout<T extends SQLiteTable, TSelect = undefined>(
     table: T,
     select?: TSelect
-  ) {
+  ): CreateSQLiteSelectFromBuilderMode<"db", GetSelectTableName<T>, "async", any, TSelect extends SelectedFields ? Simplify<TSelect> : Simplify<T['_']['columns']>, 'partial'> {
     const columns = getTableColumns(table);
     const resultColumns = Object.fromEntries(
       Object.entries(columns).filter(([key]) => !Object.keys(select || {}).includes(key))
     ) as any;
-    return this.get(table, resultColumns);
+    return this.get(table, resultColumns) as any;
   }
 
   update<T extends SQLiteTable>(
     table: T,
-    set: Partial<T['$inferSelect']>
+    set: SQLiteInsertValue<T>
   ) {
     return this.db.update(table).set(set);
   }
 
   insert<T extends SQLiteTable>(
     table: T,
-    set: T["$inferInsert"] & Partial<T["$inferSelect"]>
+    set: SQLiteInsertValue<T>
   ) {
     return this.db.insert(table).values(set);
   }
 
   insertMany<T extends SQLiteTable>(
     table: T,
-    values: (T["$inferInsert"] & Partial<T["$inferSelect"]>)[]
+    values: SQLiteInsertValue<T>[]
   ) {
     return this.db.insert(table).values(values);
   }

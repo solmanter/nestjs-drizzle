@@ -3,6 +3,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { type MySql2Database } from "drizzle-orm/mysql2";
 import {
   CreateMySqlSelectFromBuilderMode,
+  MySqlInsertValue,
   MySqlTable,
   SelectedFields,
 } from "drizzle-orm/mysql-core";
@@ -15,17 +16,17 @@ export class DrizzleService<
   TSchema extends Record<string, unknown> = Record<string, never>
 > {
   private readonly logger = new Logger(DrizzleService.name);
-  
+
   constructor(public db: MySql2Database<TSchema>) {
     this.logger.log('MySQL database connection established');
   }
 
-  get<T extends MySqlTable, TSelect extends SelectedFields | Simplify<T['$inferSelect']> | undefined>(from: T, select?: TSelect):
+  get<T extends MySqlTable, TSelect extends SelectedFields | Simplify<T['_']['columns']> = Simplify<T['_']['columns']>>(from: T, select?: TSelect):
     CreateMySqlSelectFromBuilderMode<"db", GetSelectTableName<T>, TSelect extends SelectedFields ? Simplify<TSelect> : Simplify<T['_']['columns']>, "partial", any> {
     return this.db.select(select as SelectedFields).from(from) as any;
   }
 
-  getWithout<T extends MySqlTable, TSelect>(table: T, select?: TSelect | Partial<Record<keyof T['_']['columns'], true>>):
+  getWithout<T extends MySqlTable, TSelect extends Partial<Record<keyof T['_']['columns'], true>>>(table: T, select?: TSelect):
     CreateMySqlSelectFromBuilderMode<"db", GetSelectTableName<T>, Simplify<Omit<T['_']['columns'], keyof TSelect>>, "partial", any> {
     const columns = getTableColumns(table);
     const resultColumns = select ? Object.fromEntries(
@@ -38,13 +39,13 @@ export class DrizzleService<
     return this.db.update(table).set(set);
   }
 
-  insert<T extends MySqlTable>(table: T, set: T["$inferInsert"] & Partial<T["$inferSelect"]>) {
+  insert<T extends MySqlTable>(table: T, set: MySqlInsertValue<T>) {
     return this.db.insert(table).values(set);
   }
 
   insertMany<T extends MySqlTable>(
     table: T,
-    values: (T["$inferInsert"] & Partial<T["$inferSelect"]>)[]
+    values: MySqlInsertValue<T>[]
   ) {
     return this.db.insert(table).values(values);
   }
@@ -59,9 +60,7 @@ export class DrizzleService<
    * @returns Promise resolving to the query result
    */
   execute<T = unknown>(query: SQL<unknown>): Promise<T> {
-    return this.db.execute(query).then(result => {
-      return result as unknown as T;
-    });
+    return this.db.execute(query) as any;
   }
 
   /**

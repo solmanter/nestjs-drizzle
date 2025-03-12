@@ -8,7 +8,7 @@ import { describe, it, expect, beforeAll, vi } from 'vitest';
 
 describe('DrizzleService (PostgreSQL)', () => {
   let service: DrizzleService;
-  
+
   // Mock database operations
   const mockDb = {
     select: vi.fn().mockReturnThis(),
@@ -30,7 +30,7 @@ describe('DrizzleService (PostgreSQL)', () => {
     { id: '2', username: 'user1', name: 'User', surname: 'One', age: 25, created_at: new Date().toISOString() },
     { id: '3', username: 'user2', name: 'User', surname: 'Two', age: 35, created_at: new Date().toISOString() },
   ];
-  
+
   beforeAll(async () => {
     // Create a testing module with DrizzleModule
     const moduleRef = await Test.createTestingModule({
@@ -46,44 +46,44 @@ describe('DrizzleService (PostgreSQL)', () => {
     // Get the DrizzleService instance from the module
     // @ts-ignore - The get method exists on the TestingModule but TypeScript doesn't recognize it
     service = moduleRef.get(DrizzleService);
-    
+
     // Replace the db property with our mock
     service.db = mockDb as any;
-    
+
     // Mock the service methods
     service.insert = vi.fn().mockImplementation((table, values) => {
       mockDb.insert.mockReturnThis();
       mockDb.values.mockReturnThis();
       return mockDb.insert(table).values(values);
     });
-    
+
     service.update = vi.fn().mockImplementation((table, values) => {
       mockDb.update.mockReturnThis();
       mockDb.set.mockReturnThis();
       return mockDb.update(table).set(values);
     });
-    
+
     service.delete = vi.fn().mockImplementation((table) => {
       mockDb.delete.mockReturnThis();
       return mockDb.delete(table);
     });
-    
+
     service.execute = vi.fn().mockImplementation((query) => {
       return mockDb.execute(query);
     });
-    
+
     service.transaction = vi.fn().mockImplementation((callback) => {
       return mockDb.transaction(callback);
     });
-    
+
     // Setup mock responses
     mockDb.execute.mockResolvedValue([]);
     mockDb.returning.mockImplementation(() => Promise.resolve(mockUsers.slice(0, 1)));
     mockDb.execute.mockImplementation(() => Promise.resolve(mockUsers));
-    
+
     // Setup transaction mock
     mockDb.transaction.mockImplementation(async (callback) => {
-      const tx = { 
+      const tx = {
         ...mockDb,
         insert: vi.fn().mockReturnThis(),
         values: vi.fn().mockReturnThis(),
@@ -101,13 +101,10 @@ describe('DrizzleService (PostgreSQL)', () => {
     it('should insert a user', async () => {
       // Setup mock for this test
       mockDb.returning.mockResolvedValueOnce([mockUsers[0]]);
-      
+
       // Insert a user
       const result = await service.insert(users, {
         username: 'testuser',
-        name: 'Test',
-        surname: 'User',
-        age: 30,
         email: 'testuser@example.com',
         password: 'password',
       }).returning();
@@ -124,27 +121,27 @@ describe('DrizzleService (PostgreSQL)', () => {
     it('should insert multiple users', async () => {
       // Setup mock for this test
       mockDb.returning.mockResolvedValueOnce(mockUsers.slice(1, 3));
-      
+
       // Insert multiple users using insertMany (which doesn't exist in the service, so we use db.insert directly)
       const values = [
         { username: 'user1', name: 'User', surname: 'One', age: 25 },
         { username: 'user2', name: 'User', surname: 'Two', age: 35 },
       ];
-      
+
       // For multiple inserts, we need to use db.insert directly as service.insert might not support arrays
       const result = await service.db.insert(users).values([
-        { 
-          username: 'user1', 
-          name: 'User', 
-          surname: 'One', 
+        {
+          username: 'user1',
+          name: 'User',
+          surname: 'One',
           age: 25,
           email: 'user1@example.com',
           password: 'password1'
         },
-        { 
-          username: 'user2', 
-          name: 'User', 
-          surname: 'Two', 
+        {
+          username: 'user2',
+          name: 'User',
+          surname: 'Two',
           age: 35,
           email: 'user2@example.com',
           password: 'password2'
@@ -162,14 +159,14 @@ describe('DrizzleService (PostgreSQL)', () => {
     it('should get users with select', async () => {
       // Setup mock for this test
       mockDb.execute.mockResolvedValueOnce(mockUsers.slice(1, 3));
-      
+
       // Get users with select
       const data = await service.get(users, {
         username: users.username,
         age: users.age,
       })
-      .where(eq(users.name, 'User'))
-      .execute();
+        .where(eq(users.name, 'User'))
+        .execute();
 
       expect(data).toHaveLength(2);
       expect(data[0].username).toBe('user1');
@@ -182,13 +179,13 @@ describe('DrizzleService (PostgreSQL)', () => {
       // Setup mock for this test
       const updatedUser = { ...mockUsers[1], surname: 'Updated' };
       mockDb.returning.mockResolvedValueOnce([updatedUser]);
-      
+
       // Update a user
       const [result] = await service.update(users, {
         surname: 'Updated',
       })
-      .where(eq(users.username, 'user1'))
-      .returning();
+        .where(eq(users.username, 'user1'))
+        .returning();
 
       expect(result.surname).toBe('Updated');
       expect(service.update).toHaveBeenCalled();
@@ -200,7 +197,7 @@ describe('DrizzleService (PostgreSQL)', () => {
     it('should delete a user', async () => {
       // Setup mock for this test
       mockDb.execute.mockResolvedValueOnce([]);
-      
+
       // Delete a user
       await service.delete(users)
         .where(eq(users.username, 'user2'))
@@ -208,7 +205,7 @@ describe('DrizzleService (PostgreSQL)', () => {
 
       // Setup mock for the verification query
       mockDb.execute.mockResolvedValueOnce([]);
-      
+
       // Verify deletion - using db.select() since there's no direct service.select method
       const remainingUsers = await service.db.select()
         .from(users)
@@ -227,7 +224,7 @@ describe('DrizzleService (PostgreSQL)', () => {
       // Setup mock for this test
       mockDb.execute.mockResolvedValueOnce([mockUsers[0]]);
       mockDb.execute.mockResolvedValueOnce(mockUsers);
-      
+
       // Test with condition true - using db.select() since there's no direct service.select method
       const dataTrue = await service.db.select()
         .from(users)
@@ -256,21 +253,21 @@ describe('DrizzleService (PostgreSQL)', () => {
       mockDb.execute.mockResolvedValueOnce([{ ...mockUsers[0], age: 30 }]);
       mockDb.returning.mockResolvedValueOnce([{ ...mockUsers[0], age: 35 }]);
       mockDb.returning.mockResolvedValueOnce([{ ...mockUsers[0], age: 33 }]);
-      
+
       // Get initial age - using db.select() since there's no direct service.select method
       const [initialUser] = await service.db.select()
         .from(users)
         .where(eq(users.username, 'testuser'))
         .execute();
-      
+
       const initialAge = initialUser.age ?? 0;
 
       // Increment age
       const [incrementedUser] = await service.update(users, {
         age: increment(users.age, 5),
       })
-      .where(eq(users.username, 'testuser'))
-      .returning();
+        .where(eq(users.username, 'testuser'))
+        .returning();
 
       expect(incrementedUser.age).toBe(initialAge + 5);
 
@@ -278,8 +275,8 @@ describe('DrizzleService (PostgreSQL)', () => {
       const [decrementedUser] = await service.update(users, {
         age: decrement(users.age, 2),
       })
-      .where(eq(users.username, 'testuser'))
-      .returning();
+        .where(eq(users.username, 'testuser'))
+        .returning();
 
       expect(decrementedUser.age).toBe(initialAge + 5 - 2);
       expect(service.update).toHaveBeenCalled();
@@ -294,7 +291,7 @@ describe('DrizzleService (PostgreSQL)', () => {
       // Setup mock for this test
       const txUser = { ...mockUsers[0], username: 'txuser', name: 'Transaction', age: 40 };
       const updatedTxUser = { ...txUser, surname: 'Test' };
-      
+
       const txMock = {
         insert: vi.fn().mockReturnThis(),
         values: vi.fn().mockReturnThis(),
@@ -303,15 +300,15 @@ describe('DrizzleService (PostgreSQL)', () => {
         where: vi.fn().mockReturnThis(),
         returning: vi.fn(),
       };
-      
+
       txMock.returning.mockResolvedValueOnce([txUser]);
       txMock.returning.mockResolvedValueOnce([updatedTxUser]);
       mockDb.transaction.mockImplementationOnce(async (callback) => {
         return callback(txMock);
       });
-      
+
       mockDb.execute.mockResolvedValueOnce([updatedTxUser]);
-      
+
       const result = await service.transaction(async (tx) => {
         // Insert a user in transaction
         const [user] = await tx.insert(users)
@@ -339,8 +336,10 @@ describe('DrizzleService (PostgreSQL)', () => {
       expect(result.updatedUser.surname).toBe('Test');
 
       // Verify the transaction was committed - using db.select() since there's no direct service.select method
-      const txUsers = await service.db.select()
-        .from(users)
+      const txUsers = await service.get(users, {
+        age: users.age,
+        surname: users.surname,
+      })
         .where(eq(users.username, 'txuser'))
         .execute();
 
@@ -353,14 +352,14 @@ describe('DrizzleService (PostgreSQL)', () => {
       // Setup mock for this test
       const rollbackUser = { ...mockUsers[0], username: 'rollbackuser', name: 'Rollback', age: 50, surname: null };
       mockDb.execute.mockResolvedValueOnce([rollbackUser]);
-      
+
       const txMock = {
         update: vi.fn().mockReturnThis(),
         set: vi.fn().mockReturnThis(),
         where: vi.fn().mockReturnThis(),
         execute: vi.fn(),
       };
-      
+
       mockDb.transaction.mockImplementationOnce(async (callback) => {
         try {
           return await callback(txMock);
@@ -369,7 +368,7 @@ describe('DrizzleService (PostgreSQL)', () => {
           throw error;
         }
       });
-      
+
       try {
         await service.transaction(async (tx) => {
           // Update the user

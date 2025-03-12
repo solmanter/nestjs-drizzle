@@ -3,7 +3,7 @@ import { DrizzleService } from '../../src/mysql/mysql.service';
 import { DrizzleModule } from '../../src/mysql/mysql.module';
 import { eq, sql } from 'drizzle-orm';
 import { users, profiles } from './users.schema';
-import { 
+import {
   increment, decrement, whereIf, jsonObject, concat, upper, lower,
   round, abs, trim, substring, length, position, replace, startsWith,
   endsWith, dateAdd, ifThen, caseWhen, jsonExtract, jsonSet
@@ -19,7 +19,7 @@ type Schema = {
 
 describe('DrizzleService (MySQL)', () => {
   let service: DrizzleService<Schema>;
-  
+
   // Mock database operations
   const mockDb = {
     select: vi.fn().mockReturnThis(),
@@ -41,14 +41,14 @@ describe('DrizzleService (MySQL)', () => {
     { id: '2', username: 'user1', name: 'User', surname: 'One', age: 25, created_at: new Date().toISOString() },
     { id: '3', username: 'user2', name: 'User', surname: 'Two', age: 35, created_at: new Date().toISOString() },
   ];
-  
+
   beforeAll(async () => {
     // Create a testing module with DrizzleModule
     const moduleRef = await Test.createTestingModule({
       imports: [
         DrizzleModule.forRoot({
           connectionString: 'mysql://root:password@localhost:3306/test_db',
-          driver: 'pool',
+          driver: 'mysql',
           schema: { users, profiles },
           pool: {
             // Add minimal pool options to satisfy the type
@@ -60,10 +60,10 @@ describe('DrizzleService (MySQL)', () => {
 
     // Get the DrizzleService instance from the module
     service = moduleRef.get<DrizzleService<Schema>>(DrizzleService);
-    
+
     // Replace the db property with our mock
     service.db = mockDb as unknown as MySql2Database<Schema>;
-    
+
     // Setup mock query property with proper typing
     mockDb.query = {
       users: {
@@ -75,7 +75,7 @@ describe('DrizzleService (MySQL)', () => {
         findFirst: vi.fn().mockResolvedValue(null),
       },
     };
-    
+
     // Setup mock execute method
     mockDb.execute.mockImplementation((query) => {
       if (query.toString().includes('SELECT')) {
@@ -83,7 +83,7 @@ describe('DrizzleService (MySQL)', () => {
       }
       return Promise.resolve([{ affectedRows: 1 }, undefined]);
     });
-    
+
     // Setup mock transaction method
     mockDb.transaction.mockImplementation(async (callback) => {
       return callback(mockDb as unknown as MySql2Database<Schema>);
@@ -91,8 +91,8 @@ describe('DrizzleService (MySQL)', () => {
   });
 
   describe('get', () => {
-    it('should call select and from with the correct parameters', () => {
-      service.get(users);
+    it('should call select and from with the correct parameters', async () => {
+      const result = await service.get(users);
       expect(mockDb.select).toHaveBeenCalled();
       expect(mockDb.from).toHaveBeenCalledWith(users);
     });
@@ -106,9 +106,8 @@ describe('DrizzleService (MySQL)', () => {
 
   describe('getWithout', () => {
     it('should exclude specified columns', () => {
-      const excludeColumns = { password: true };
+      const excludeColumns = { password: true } as const;
       service.getWithout(users, excludeColumns);
-      // This is a simplified test since we can't easily check the exact columns
       expect(mockDb.select).toHaveBeenCalled();
       expect(mockDb.from).toHaveBeenCalledWith(users);
     });
@@ -125,14 +124,14 @@ describe('DrizzleService (MySQL)', () => {
 
   describe('insert', () => {
     it('should call insert and values with the correct parameters', () => {
-      const userData = { 
-        id: '4', 
-        username: 'newuser', 
-        name: 'New', 
-        surname: 'User', 
+      const userData = {
+        id: '4',
+        username: 'newuser',
+        name: 'New',
+        surname: 'User',
         email: 'new@example.com',
         password: 'password123',
-        age: 28 
+        age: 28
       };
       service.insert(users, userData);
       expect(mockDb.insert).toHaveBeenCalledWith(users);
@@ -143,15 +142,15 @@ describe('DrizzleService (MySQL)', () => {
   describe('insertMany', () => {
     it('should call insert and values with multiple records', () => {
       const usersData = [
-        { 
-          id: '4', 
-          username: 'user4', 
+        {
+          id: '4',
+          username: 'user4',
           email: 'user4@example.com',
           password: 'password123',
         },
-        { 
-          id: '5', 
-          username: 'user5', 
+        {
+          id: '5',
+          username: 'user5',
           email: 'user5@example.com',
           password: 'password456',
         }
